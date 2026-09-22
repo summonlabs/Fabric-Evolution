@@ -1,0 +1,30 @@
+# Build trees
+build/
+build-*/
+out/
+install/
+cmake-build-*/
+
+# Visual Studio / CMake user files
+.vs/
+.vscode/
+CMakeUserPresets.json
+*.user
+
+# Runtime scratch state produced by local runs
+run/
+state/
+*.log
+*.tmp
+*.dmp
+*.pdb
+*.ilk
+*.obj
+*.exe
+*.lib
+*.exp
+*.dll
+
+# Tooling caches
+.cache/
+compile_commands.json

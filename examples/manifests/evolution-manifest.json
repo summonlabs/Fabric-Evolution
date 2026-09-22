@@ -1,0 +1,108 @@
+{
+  "id": "manifest-node-a-to-b",
+  "campaign": "campaign-1",
+  "shard": "shard-0",
+  "revision": 1,
+  "source": {
+    "id": "node-a",
+    "software": "1.0.0",
+    "protocol": "1.0",
+    "schema": 1,
+    "features": [
+      "snapshot_transfer",
+      "incremental_catch_up",
+      "schema_migration",
+      "protocol_negotiation",
+      "fenced_stale_rejection",
+      "epoch_attestation"
+    ],
+    "host": "127.0.0.1",
+    "port": 7001
+  },
+  "target": {
+    "id": "node-b",
+    "software": "2.0.0",
+    "protocol": "1.1",
+    "schema": 2,
+    "features": [
+      "snapshot_transfer",
+      "incremental_catch_up",
+      "schema_migration",
+      "protocol_negotiation",
+      "fenced_stale_rejection",
+      "epoch_attestation"
+    ],
+    "host": "127.0.0.1",
+    "port": 7002
+  },
+  "compatibility": {
+    "decision_id": "compat-1.0.0-2.0.0",
+    "registry": "fabric-compatibility-registry",
+    "subject": "node-a",
+    "source": "1.0.0",
+    "target": "2.0.0",
+    "source_protocol": "1.0",
+    "target_protocol": "1.1",
+    "source_schema": 1,
+    "target_schema": 2,
+    "verdict": "supported_with_constraints",
+    "rollback_permitted": true,
+    "max_mixed_version_operations": 10000,
+    "max_mixed_version_ms": 600000,
+    "certified_features": [
+      "snapshot_transfer",
+      "incremental_catch_up",
+      "schema_migration",
+      "protocol_negotiation",
+      "fenced_stale_rejection",
+      "epoch_attestation"
+    ],
+    "constraints": [
+      { "name": "mixed_version_window", "value": "bounded" }
+    ],
+    "decided_at": 1
+  },
+  "window": {
+    "max_duration_ms": 600000,
+    "max_operations": 10000,
+    "min_participants": 2,
+    "require_read_only_shared_phase": true
+  },
+  "migrations": [
+    {
+      "id": "step-rename-region",
+      "from": 1,
+      "to": 2,
+      "function": "rename_field",
+      "parameters": { "from": "region", "to": "zone", "optional": "true" },
+      "deterministic": true,
+      "reversible": true,
+      "irreversible_boundary": false,
+      "description": "rename the region field to zone"
+    }
+  ],
+  "protocol": {
+    "accepted": ["1.0", "1.1"],
+    "required_features": [
+      "snapshot_transfer",
+      "incremental_catch_up",
+      "schema_migration",
+      "protocol_negotiation",
+      "fenced_stale_rejection",
+      "epoch_attestation"
+    ],
+    "allowed_features": [
+      "snapshot_transfer",
+      "incremental_catch_up",
+      "schema_migration",
+      "protocol_negotiation",
+      "fenced_stale_rejection",
+      "epoch_attestation"
+    ]
+  },
+  "rollback": {
+    "kind": "rollback_if_no_boundary_crossed",
+    "recovery_plan": "restore predecessor authority and retire the successor before any irreversible boundary is crossed",
+    "declared_irreversible_boundaries": []
+  }
+}

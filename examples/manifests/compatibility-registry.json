@@ -1,0 +1,32 @@
+{
+  "registry": "fabric-compatibility-registry",
+  "decisions": [
+    {
+      "decision_id": "compat-1.0.0-2.0.0",
+      "registry": "fabric-compatibility-registry",
+      "subject": "node-a",
+      "source": "1.0.0",
+      "target": "2.0.0",
+      "source_protocol": "1.0",
+      "target_protocol": "1.1",
+      "source_schema": 1,
+      "target_schema": 2,
+      "verdict": "supported_with_constraints",
+      "rollback_permitted": true,
+      "max_mixed_version_operations": 10000,
+      "max_mixed_version_ms": 600000,
+      "certified_features": [
+        "snapshot_transfer",
+        "incremental_catch_up",
+        "schema_migration",
+        "protocol_negotiation",
+        "fenced_stale_rejection",
+        "epoch_attestation"
+      ],
+      "constraints": [
+        { "name": "mixed_version_window", "value": "bounded" }
+      ],
+      "decided_at": 1
+    }
+  ]
+}

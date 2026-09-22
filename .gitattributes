@@ -1,0 +1,14 @@
+# Fabric Evolution — line ending and diff policy.
+# Copyright 2026 Summon Software Labs.
+# Licensed under the Apache License, Version 2.0.
+#
+# Sources and documents are stored with LF endings and checked out unchanged, so
+# that a fresh clone builds and diffs identically on every platform.
+
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.lib binary
+*.exe binary
