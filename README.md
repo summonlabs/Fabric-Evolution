@@ -2,8 +2,7 @@
 
 **Fabric Evolution** is a standalone, vendor-neutral runtime for the controlled evolution of a
 distributed control plane while the fabric stays in service. It owns the correctness of an
-evolution — not just the mechanics of moving binaries — and it is a Summon Software Labs
-Fabric OS component.
+evolution — not just the mechanics of moving binaries.
 
 It is a C++20 library, three shipped executables, and a test suite that proves the distributed
 claims with real independent OS processes over real sockets.
