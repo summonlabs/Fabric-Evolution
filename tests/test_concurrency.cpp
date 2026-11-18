@@ -8,9 +8,27 @@
 // defect, not something to paper over with a watchdog, so the tests simply run.
 
 #include <atomic>
+#include <chrono>
+#include <future>
 #include <string>
 #include <thread>
 #include <vector>
+
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
 
 #include "fabric/evolution/authority.hpp"
 #include "fabric/evolution/transport.hpp"
@@ -224,6 +242,75 @@ FABRIC_TEST(concurrency, peers_that_disconnect_mid_frame_do_not_stall_the_server
     FABRIC_CHECK_OK(response);
   }
   server->stop();
+}
+
+FABRIC_TEST(concurrency, a_second_listener_cannot_take_a_listening_port) {
+  auto first = TcpListener::bind("127.0.0.1", 0);
+  FABRIC_CHECK(first.ok());
+  const std::uint16_t port = first.value().port();
+  FABRIC_CHECK(port != 0);
+  auto second = TcpListener::bind("127.0.0.1", port);
+  // Two controllers must never share one listening port: the second bind fails.
+  FABRIC_CHECK(!second.ok());
+}
+
+
+FABRIC_TEST(concurrency, stop_does_not_wait_for_an_idle_client) {
+  auto server = std::make_unique<FabricServer>(
+      ServerOptions{}, [](const RpcRequest& request, const RequestContext&) {
+        RpcResponse response;
+        response.id = request.id;
+        response.op = request.op;
+        return response;
+      });
+  FABRIC_CHECK_OK(server->start());
+  FABRIC_CHECK_OK(SocketRuntime::ensure());
+  // A client that connected and never sends: a worker serves it and waits in
+  // a receive for its first frame.
+#if defined(_WIN32)
+  const SOCKET peer = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  const bool socket_ok = peer != INVALID_SOCKET;
+#else
+  const int peer = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+  const bool socket_ok = peer >= 0;
+#endif
+  sockaddr_in address{};
+  address.sin_family = AF_INET;
+  address.sin_port = htons(server->port());
+  address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  const bool connected =
+      socket_ok &&
+      ::connect(peer, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0;
+  // A bounded readiness wait, not a pass condition: the case checks stop().
+  bool serving = false;
+  for (int round = 0; connected && round < 2000 && !serving; ++round) {
+    serving = server->active_workers() == 1;
+    if (!serving) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+  }
+  // stop() runs on a helper thread, so a stop() that waits on the idle client
+  // is observed instead of hanging the suite; closing the client releases it.
+  std::promise<void> stopped;
+  std::future<void> done = stopped.get_future();
+  std::thread stopper([&server, &stopped]() {
+    server->stop();
+    stopped.set_value();
+  });
+  const bool returned = done.wait_for(std::chrono::seconds(10)) == std::future_status::ready;
+  if (socket_ok) {
+#if defined(_WIN32)
+    ::closesocket(peer);
+#else
+    ::close(peer);
+#endif
+  }
+  stopper.join();
+  FABRIC_CHECK(connected);
+  FABRIC_CHECK(serving);
+  // stop() ends the worker's pending receive instead of waiting out the 30 s
+  // I/O deadline.
+  FABRIC_CHECK(returned);
 }
 
 }  // namespace fabric::evolution

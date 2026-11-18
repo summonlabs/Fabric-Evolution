@@ -2,9 +2,12 @@
 // Copyright 2026 Summon Software Labs.
 // Licensed under the Apache License, Version 2.0.
 
+#include <chrono>
 #include <cstdio>
 #include <fstream>
+#include <iterator>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "fabric/evolution/framing.hpp"
@@ -268,6 +271,30 @@ FABRIC_TEST(framing, empty_payload_frames_are_valid) {
   FABRIC_CHECK_OK(decoder.feed(encoded.value(), frames));
   FABRIC_CHECK_EQ(frames.size(), static_cast<std::size_t>(1));
   FABRIC_CHECK(frames.front().payload.empty());
+}
+
+FABRIC_TEST(persistence, an_atomic_write_waits_for_a_reader_to_close) {
+  test::TempDir directory("persistence-reader");
+  const std::string path = directory.sub("records.bin");
+  FABRIC_CHECK_OK(write_bytes_atomic(path, "first"));
+  bool reader_opened = false;
+  bool written = false;
+  {
+    // Another tool reading the state (an inspection, a scan) holds the file
+    // open while it is replaced, and closes it shortly after.
+    std::ifstream reader(path, std::ios::binary);
+    reader_opened = reader.is_open();
+    std::thread writer([&path, &written] { written = write_bytes_atomic(path, "second").ok(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    reader.close();
+    writer.join();
+  }
+  FABRIC_CHECK(reader_opened);
+  // The replacement waits for the reader instead of failing the write.
+  FABRIC_CHECK(written);
+  std::ifstream stored(path, std::ios::binary);
+  const std::string content((std::istreambuf_iterator<char>(stored)), std::istreambuf_iterator<char>());
+  FABRIC_CHECK(content == "second");
 }
 
 }  // namespace fabric::evolution

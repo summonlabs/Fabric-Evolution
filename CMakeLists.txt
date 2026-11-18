@@ -56,11 +56,18 @@ function(fabric_evolution_strict target)
     endif()
   endif()
   if(FABRIC_EVOLUTION_ENABLE_ASAN)
+    # Public, so that a consumer of the instrumented library is instrumented as
+    # well: MSVC refuses to link instrumented and plain objects together
+    # (LNK2038 annotate_string / annotate_vector), and other toolchains need
+    # the sanitizer runtime at the consumer's link.
     if(MSVC)
-      target_compile_options(${target} PRIVATE /fsanitize=address)
+      # Debug information is required: without it MSVC warns C5072 for every
+      # source, which FABRIC_EVOLUTION_WARNINGS_AS_ERRORS turns into an error.
+      target_compile_options(${target} PUBLIC /fsanitize=address /Zi)
+      target_link_options(${target} PUBLIC /INCREMENTAL:NO /DEBUG)
     else()
-      target_compile_options(${target} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-      target_link_options(${target} PRIVATE -fsanitize=address)
+      target_compile_options(${target} PUBLIC -fsanitize=address -fno-omit-frame-pointer)
+      target_link_options(${target} PUBLIC -fsanitize=address)
     endif()
   endif()
 endfunction()

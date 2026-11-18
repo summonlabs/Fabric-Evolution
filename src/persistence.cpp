@@ -67,12 +67,28 @@ constexpr std::size_t kRecordHeaderBytes = 24;  // magic(4) + version(4) + lengt
 
 [[nodiscard]] Status replace_file(const std::string& from, const std::string& to) {
 #ifdef _WIN32
-  if (MoveFileExA(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0) {
-    return Status::error(ErrorCode::IoFailure, "failed to install durable file",
-                         Json::object({{"from", Json(from)}, {"to", Json(to)},
-                               {"win32_error", Json(static_cast<std::uint64_t>(GetLastError()))}}));
+  // While a reader has the target open (an inspection, an antivirus or
+  // indexing scan) the replacement fails until the reader closes the file, so
+  // it is retried for a bounded time (about 2 s). A directory in the way is
+  // not transient and fails at once.
+  for (int attempt = 0;; ++attempt) {
+    if (MoveFileExA(from.c_str(), to.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0) {
+      return Status::success();
+    }
+    const DWORD failure = GetLastError();
+    const DWORD attributes = GetFileAttributesA(to.c_str());
+    const bool directory =
+        attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    const bool transient = (failure == ERROR_ACCESS_DENIED || failure == ERROR_SHARING_VIOLATION ||
+                            failure == ERROR_LOCK_VIOLATION) &&
+                           !directory;
+    if (!transient || attempt >= 100) {
+      return Status::error(ErrorCode::IoFailure, "failed to install durable file",
+                           Json::object({{"from", Json(from)}, {"to", Json(to)},
+                                 {"win32_error", Json(static_cast<std::uint64_t>(failure))}}));
+    }
+    Sleep(20);
   }
-  return Status::success();
 #else
   std::error_code error;
   std::filesystem::rename(from, to, error);

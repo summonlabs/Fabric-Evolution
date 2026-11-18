@@ -57,7 +57,11 @@ void shutdown_socket(SocketHandle handle) noexcept {
     return;
   }
 #ifdef _WIN32
+  // shutdown() does not end a recv() another thread is already blocked in on
+  // Windows; cancelling the socket's pending I/O does. Without it a server
+  // stopping with an idle client waited out the client's I/O deadline.
   ::shutdown(static_cast<SOCKET>(handle), SD_BOTH);
+  (void)::CancelIoEx(reinterpret_cast<HANDLE>(static_cast<SOCKET>(handle)), nullptr);
 #else
   ::shutdown(static_cast<int>(handle), SHUT_RDWR);
 #endif
@@ -329,7 +333,10 @@ Result<TcpListener> TcpListener::bind(const std::string& host, std::uint16_t por
 #endif
     int reuse = 1;
 #ifdef _WIN32
-    ::setsockopt(candidate, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&reuse), sizeof(reuse));
+    // SO_REUSEADDR on Windows lets a second socket bind a port that is still
+    // listening; exclusive use makes that second bind fail instead.
+    ::setsockopt(candidate, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, reinterpret_cast<const char*>(&reuse),
+                 sizeof(reuse));
 #else
     ::setsockopt(candidate, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 #endif
